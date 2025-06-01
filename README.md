@@ -5,9 +5,6 @@ Generates samples using [Piper](https://github.com/rhasspy/piper/) for training 
 Available models:
 
 * [English](https://github.com/rhasspy/piper-sample-generator/releases/download/v2.0.0/en_US-libritts_r-medium.pt)
-* [French](https://github.com/rhasspy/piper-sample-generator/releases/download/v2.0.0/fr_FR-mls-medium.pt)
-* [German](https://github.com/rhasspy/piper-sample-generator/releases/download/v2.0.0/de_DE-mls-medium.pt)
-* [Dutch](https://github.com/rhasspy/piper-sample-generator/releases/download/v2.0.0/nl_NL-mls-medium.pt)
 
 
 ## Install

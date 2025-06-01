@@ -10,12 +10,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
+import onnxruntime as ort
 import torch
 import torchaudio
 import webrtcvad
-import onnxruntime as ort
 from piper_phonemize import phonemize_espeak
-
 from piper_train.vits import commons
 
 _DIR = Path(__file__).parent
@@ -29,7 +28,8 @@ def generate_samples(
     output_dir: Union[str, Path],
     max_samples: Optional[int] = None,
     file_names: Optional[List[str]] = None,
-    model: Union[str, Path] = _DIR / "models" / "en_US-libritts_r-medium.pt",
+    # model: Union[str, Path] = _DIR / "models" / "en_US-libritts_r-medium.pt",
+    model: Union[str, Path] = _DIR / "models" / "pt_PT-tugao-medium.onnx",
     batch_size: int = 1,
     slerp_weights: Tuple[float, ...] = (0.5,),
     length_scales: Tuple[float, ...] = (0.75, 1, 1.25),
@@ -84,7 +84,7 @@ def generate_samples(
         _LOGGER.info("Successfully loaded ONNX model")
     else:
         # Load PyTorch model
-        torch_model = torch.load(model_path, weights_only=False) #! My change
+        torch_model = torch.load(model_path, weights_only=False)  #! My change
         torch_model.eval()
         onnx_model = None
         _LOGGER.info("Successfully loaded PyTorch model")
