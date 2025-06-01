@@ -30,8 +30,6 @@ def generate_samples(
     file_names: Optional[List[str]] = None,
     # model: Union[str, Path] = _DIR / "models" / "en_US-libritts_r-medium.pt",
     model: Union[str, Path] = _DIR / "models" / "pt_PT-tugao-medium.onnx",
-    model2: Optional[Union[str, Path]] = None,
-    # model2: Optional[Union[str, Path]] = _DIR / "models" / "pt_PT-rita.onnx",
     batch_size: int = 1,
     slerp_weights: Tuple[float, ...] = (0.5,),
     length_scales: Tuple[float, ...] = (0.75, 1, 1.25),
@@ -54,8 +52,6 @@ def generate_samples(
         file_names (List[str]): The names to use when saving the files. Must be the same length
                                 as the `text` argument, if a list.
         model (str): The path to the STT model to use for generation.
-        model2 (str): Optional path to a second ONNX model. When provided, the function will
-                      alternate between model and model2 for generation.
         batch_size (int): The batch size to use when generated the clips
         slerp_weights (List[float]): The weights to use when mixing speakers via SLERP.
         length_scales (List[float]): Controls the average duration/speed of the generated speech.
@@ -75,7 +71,6 @@ def generate_samples(
     if max_samples is None:
         max_samples = len(text)
 
-    # Load first model
     _LOGGER.debug("Loading %s", model)
     model_path = Path(model)
 
@@ -105,40 +100,6 @@ def generate_samples(
             torch_model.cuda()
             _LOGGER.debug("CUDA available, using GPU")
 
-    # Load second model if provided
-    onnx_model2 = None
-    config2 = None
-    dual_model_mode = model2 is not None
-
-    if dual_model_mode:
-        _LOGGER.debug("Loading second model %s", model2)
-        model2_path = Path(model2)
-
-        # Check if second model is also ONNX
-        is_onnx2 = model2_path.suffix.lower() == ".onnx"
-
-        if not is_onnx2:
-            raise ValueError("Second model must be an ONNX model (.onnx extension)")
-
-        if not is_onnx:
-            raise ValueError("When using two models, the first model must also be ONNX")
-
-        # Load second ONNX model with GPU support
-        providers = (
-            ["CUDAExecutionProvider", "CPUExecutionProvider"]
-            if torch.cuda.is_available()
-            else ["CPUExecutionProvider"]
-        )
-        onnx_model2 = ort.InferenceSession(str(model2_path), providers=providers)
-        _LOGGER.info(
-            f"Successfully loaded second ONNX model with providers: {onnx_model2.get_providers()}"
-        )
-
-        # Load config for second model
-        config2_path = f"{model2_path}.json"
-        with open(config2_path, "r", encoding="utf-8") as config_file:
-            config2 = json.load(config_file)
-
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -151,20 +112,6 @@ def generate_samples(
     num_speakers = config["num_speakers"]
     if max_speakers is not None:
         num_speakers = min(num_speakers, max_speakers)
-
-    # Set up model alternation if using dual model mode
-    if dual_model_mode:
-        # Create iterators for alternating between models
-        models_iter = it.cycle(
-            [
-                (onnx_model, config, voice),
-                (onnx_model2, config2, config2["espeak"]["voice"]),
-            ]
-        )
-        _LOGGER.info("Dual model mode enabled - will alternate between models")
-    else:
-        # Single model mode - always use the same model
-        models_iter = it.cycle([(onnx_model or torch_model, config, voice)])
 
     max_len = None
 
@@ -219,9 +166,6 @@ def generate_samples(
         batch_size = len(speakers_batch)
         slerp_weight, length_scale, noise_scale, noise_scale_w = next(settings_iter)
 
-        # Get current model, config, and voice for this batch
-        current_model, current_config, current_voice = next(models_iter)
-
         with torch.no_grad():
             speaker_1 = torch.LongTensor([s[0] for s in speakers_batch])
             speaker_2 = torch.LongTensor([s[1] for s in speakers_batch])
@@ -230,11 +174,7 @@ def generate_samples(
             clip_indexes_by_batch = []
             for i in range(batch_size):
                 phoneme_ids, clip_phoneme_index = get_phonemes(
-                    current_voice,
-                    current_config,
-                    next(texts),
-                    verbose,
-                    min_phoneme_count,
+                    voice, config, next(texts), verbose, min_phoneme_count
                 )
                 phoneme_ids_by_batch.append(phoneme_ids)
                 clip_indexes_by_batch.append(clip_phoneme_index)
@@ -256,70 +196,36 @@ def generate_samples(
                 counter = 1
                 while oom_error is True:
                     try:
-                        # Determine which models to pass based on current model
-                        if dual_model_mode:
-                            # In dual mode, current_model is an ONNX model
-                            audio, phoneme_samples = generate_audio(
-                                None,  # torch_model
-                                current_model,  # onnx_model
-                                speaker_1[0 : batch_size // counter],
-                                speaker_2[0 : batch_size // counter],
-                                phoneme_ids_by_batch[0 : batch_size // counter],
-                                slerp_weight,
-                                noise_scale,
-                                noise_scale_w,
-                                length_scale,
-                                max_len,
-                            )
-                        else:
-                            # Single model mode - use original logic
-                            audio, phoneme_samples = generate_audio(
-                                torch_model,
-                                onnx_model,
-                                speaker_1[0 : batch_size // counter],
-                                speaker_2[0 : batch_size // counter],
-                                phoneme_ids_by_batch[0 : batch_size // counter],
-                                slerp_weight,
-                                noise_scale,
-                                noise_scale_w,
-                                length_scale,
-                                max_len,
-                            )
+                        audio, phoneme_samples = generate_audio(
+                            torch_model,
+                            onnx_model,
+                            speaker_1[0 : batch_size // counter],
+                            speaker_2[0 : batch_size // counter],
+                            phoneme_ids_by_batch[0 : batch_size // counter],
+                            slerp_weight,
+                            noise_scale,
+                            noise_scale_w,
+                            length_scale,
+                            max_len,
+                        )
                         oom_error = False
                     except torch.cuda.OutOfMemoryError:
                         torch.cuda.empty_cache()
                         gc.collect()
                         counter += 1  # reduce batch size to avoid OOM errors
             else:
-                # Determine which models to pass based on current model
-                if dual_model_mode:
-                    # In dual mode, current_model is an ONNX model
-                    audio, phoneme_samples = generate_audio(
-                        None,  # torch_model
-                        current_model,  # onnx_model
-                        speaker_1,
-                        speaker_2,
-                        phoneme_ids_by_batch,
-                        slerp_weight,
-                        noise_scale,
-                        noise_scale_w,
-                        length_scale,
-                        max_len,
-                    )
-                else:
-                    # Single model mode - use original logic
-                    audio, phoneme_samples = generate_audio(
-                        torch_model,
-                        onnx_model,
-                        speaker_1,
-                        speaker_2,
-                        phoneme_ids_by_batch,
-                        slerp_weight,
-                        noise_scale,
-                        noise_scale_w,
-                        length_scale,
-                        max_len,
-                    )
+                audio, phoneme_samples = generate_audio(
+                    torch_model,
+                    onnx_model,
+                    speaker_1,
+                    speaker_2,
+                    phoneme_ids_by_batch,
+                    slerp_weight,
+                    noise_scale,
+                    noise_scale_w,
+                    length_scale,
+                    max_len,
+                )
 
             # Clip audio when using min_phoneme_count
             for i, clip_phoneme_index in enumerate(clip_indexes_by_batch):
@@ -651,9 +557,6 @@ def main() -> None:
     parser.add_argument("--max-samples", required=True, type=int)
     parser.add_argument(
         "--model", default=_DIR / "models" / "en_US-libritts_r-medium.pt"
-    )
-    parser.add_argument(
-        "--model2", help="Optional second ONNX model to alternate with the first model"
     )
     parser.add_argument("--batch-size", type=int, default=1)
     parser.add_argument("--slerp-weights", nargs="+", type=float, default=[0.5])
