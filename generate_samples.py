@@ -82,10 +82,17 @@ def generate_samples(
     is_onnx = model_path.suffix.lower() == ".onnx"
 
     if is_onnx:
-        # Load ONNX model
-        onnx_model = ort.InferenceSession(str(model_path))
+        # Load ONNX model with GPU support if available
+        providers = (
+            ["CUDAExecutionProvider", "CPUExecutionProvider"]
+            if torch.cuda.is_available()
+            else ["CPUExecutionProvider"]
+        )
+        onnx_model = ort.InferenceSession(str(model_path), providers=providers)
         torch_model = None
-        _LOGGER.info("Successfully loaded ONNX model")
+        _LOGGER.info(
+            f"Successfully loaded ONNX model with providers: {onnx_model.get_providers()}"
+        )
     else:
         # Load PyTorch model
         torch_model = torch.load(model_path, weights_only=False)  #! My change
@@ -115,9 +122,16 @@ def generate_samples(
         if not is_onnx:
             raise ValueError("When using two models, the first model must also be ONNX")
 
-        # Load second ONNX model
-        onnx_model2 = ort.InferenceSession(str(model2_path))
-        _LOGGER.info("Successfully loaded second ONNX model")
+        # Load second ONNX model with GPU support
+        providers = (
+            ["CUDAExecutionProvider", "CPUExecutionProvider"]
+            if torch.cuda.is_available()
+            else ["CPUExecutionProvider"]
+        )
+        onnx_model2 = ort.InferenceSession(str(model2_path), providers=providers)
+        _LOGGER.info(
+            f"Successfully loaded second ONNX model with providers: {onnx_model2.get_providers()}"
+        )
 
         # Load config for second model
         config2_path = f"{model2_path}.json"
@@ -354,7 +368,7 @@ def generate_samples(
                     break
 
             # print(f"Batch {batch_idx +1}/{max_samples//batch_size} complete", " "*200, end='\r')
-            print(f"Sample {sample_idx}/{max_samples} complete", " "*200, end='\r')
+            print(f"Sample {sample_idx}/{max_samples} complete", " " * 200, end="\r")
 
         # Next batch
         _LOGGER.debug("Batch %s/%s complete", batch_idx + 1, max_samples // batch_size)
