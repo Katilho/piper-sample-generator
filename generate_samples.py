@@ -172,8 +172,8 @@ def generate_samples(
         resample_rate,
         lowpass_filter_width=64,
         rolloff=0.9475937167399596,
-        # resampling_method="sinc_interp_kaiser",
-        resampling_method="sinc_interpolation",
+        resampling_method="sinc_interp_kaiser",
+        # resampling_method="sinc_interpolation",
         beta=14.769656459379492,
     )
 
@@ -353,6 +353,7 @@ def generate_samples(
                     break
 
             # print(f"Batch {batch_idx +1}/{max_samples//batch_size} complete", " "*200, end='\r')
+            print(f"Sample {sample_idx}/{max_samples} complete", " "*200, end='\r')
 
         # Next batch
         _LOGGER.debug("Batch %s/%s complete", batch_idx + 1, max_samples // batch_size)
