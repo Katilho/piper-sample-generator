@@ -372,7 +372,7 @@ def generate_samples(
             print(f"Sample {sample_idx}/{max_samples} complete", " " * 200, end="\r")
 
         # Next batch
-        _LOGGER.debug("Batch %s/%s complete", batch_idx + 1, max_samples // batch_size, end="\r")
+        print("Batch %s/%s complete", batch_idx + 1, max_samples // batch_size, end="\r")
         speakers_batch = list(it.islice(speakers_iter, 0, batch_size))
         batch_idx += 1
 
