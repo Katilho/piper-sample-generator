@@ -172,8 +172,9 @@ def generate_samples(
         resample_rate,
         lowpass_filter_width=64,
         rolloff=0.9475937167399596,
-        resampling_method="sinc_interp_kaiser",
+        # resampling_method="sinc_interp_kaiser",
         # resampling_method="sinc_interpolation",
+        resampling_method="sinc_interp_hann",
         beta=14.769656459379492,
     )
 
