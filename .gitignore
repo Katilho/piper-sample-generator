@@ -7,6 +7,5 @@ tmp/
 __pycache__/
 .mypy_cache/
 *.pt
-*.onnx
 
 output/
