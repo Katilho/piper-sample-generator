@@ -29,7 +29,7 @@ def generate_samples(
     max_samples: Optional[int] = None,
     file_names: Optional[List[str]] = None,
     # model: Union[str, Path] = _DIR / "models" / "en_US-libritts_r-medium.pt",
-    model: Union[str, Path] = _DIR / "models" / "pt_PT-tugao-medium.onnx",
+    model: Union[str, Path] = _DIR / "models" / "tugao.pt",
     batch_size: int = 1,
     slerp_weights: Tuple[float, ...] = (0.5,),
     length_scales: Tuple[float, ...] = (0.75, 1, 1.25),
@@ -209,9 +209,12 @@ def generate_samples(
             for i, clip_phoneme_index in enumerate(clip_indexes_by_batch):
                 if clip_phoneme_index is not None:
                     first_sample_idx = int(
-                        phoneme_samples[i].flatten()[:clip_phoneme_index-1].sum().item()
+                        phoneme_samples[i]
+                        .flatten()[: clip_phoneme_index - 1]
+                        .sum()
+                        .item()
                     )
-                    
+
                     # Fill start of audio with silence until actual sample.
                     # It will be removed in the next stage.
                     audio[i, 0, :first_sample_idx] = 0
@@ -219,7 +222,7 @@ def generate_samples(
                 # Fill time after last speech with silence.
                 # It will be removed in the next stage
                 last_sample_idx = int(phoneme_samples[i].flatten().sum().item())
-                audio[i, 0, last_sample_idx+1:] = 0
+                audio[i, 0, last_sample_idx + 1 :] = 0
 
             # Resample audio
             audio = resampler(audio.cpu()).numpy()
@@ -228,11 +231,9 @@ def generate_samples(
             for audio_idx in range(audio_int16.shape[0]):
                 # Trim any silenced audio
                 audio_data = np.trim_zeros(audio_int16[audio_idx].flatten())
-                
+
                 # Use webrtcvad to trim any remaining silence from the clips
-                audio_data = remove_silence(audio_int16[audio_idx].flatten())[
-                    None,
-                ]
+                audio_data = remove_silence(audio_int16[audio_idx].flatten())[None,]
 
                 if isinstance(file_names, it.cycle):
                     wav_path = output_dir / next(file_names)
