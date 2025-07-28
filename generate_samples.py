@@ -28,8 +28,8 @@ def generate_samples(
     output_dir: Union[str, Path],
     max_samples: Optional[int] = None,
     file_names: Optional[List[str]] = None,
-    # model: Union[str, Path] = _DIR / "models" / "en_US-libritts_r-medium.pt",
-    model: Union[str, Path] = _DIR / "models" / "tugao.pt",
+    model: Union[str, Path] = _DIR / "models" / "en_US-libritts_r-medium.pt",
+    # model: Union[str, Path] = _DIR / "models" / "tugao.pt",
     batch_size: int = 1,
     slerp_weights: Tuple[float, ...] = (0.5,),
     length_scales: Tuple[float, ...] = (0.75, 1, 1.25),
@@ -253,10 +253,10 @@ def generate_samples(
                     break
 
             # print(f"Batch {batch_idx +1}/{max_samples//batch_size} complete", " "*200, end='\r')
-            print(f"Sample {sample_idx}/{max_samples} complete", " " * 200, end="\r")
+            # print(f"Sample {sample_idx}/{max_samples} complete", " " * 200, end="\r")
 
         # Next batch
-        print(f"Batch {batch_idx + 1}/{max_samples // batch_size} complete", end="\r")
+        # print(f"Batch {batch_idx + 1}/{max_samples // batch_size} complete", end="\r")
         speakers_batch = list(it.islice(speakers_iter, 0, batch_size))
         batch_idx += 1
 
